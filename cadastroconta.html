@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+    
+<head>
+    <title>cadastro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+
+   <style>
+    * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background-image: linear-gradient(10deg,rgb(255, 255, 255),rgb(226, 71, 71));
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    height: 100vh;
+}
+
+.container {
+    width: 300px;
+    margin: 50px auto;
+    padding: 20px;
+    background-image: linear-gradient(50deg,rgb(93, 93, 93),rgb(255, 255, 255));
+    /*background-color: #ffffff;*/
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+    text-align: center;
+}
+
+h2 {
+    margin-bottom: 20px;
+    color: rgb(0, 0, 0);
+}
+
+
+ 
+
+
+label {
+    display: block;
+    text-align: left;
+    margin-bottom: 8px;
+    color: rgb(0, 0, 0);
+}
+
+input {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+button {
+    background-color: #ac0606;
+    color: rgb(237, 212, 212);
+    padding: 10px 20px;
+    border-color: white; 
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #000000;
+
+}
+.alinhamento{
+    display: inline;
+    margin-right:10px;
+}
+
+
+   </style> 
+    
+</head>
+
+<script>
+    /*codigo para estudar ...mas funciona */
+    function validateInput(input){
+        const pattern = /^\d*$/;
+        if(!pattern.test(input.value)){
+            input.setCustomValidity('valor invalido');
+        }else{
+            input.setCustomValidity("");
+        }
+    }
+</script>
+
+<body>
+    
+
+    <div class="container">
+        <h2>Cadastro de Conta</h2>
+        <form action="submit_form.php" method="post">
+            <label for="name">Nome Completo:</label>
+            <input type="text" id="name" name="name" required><br><br>
+
+            <label for="tele">Número de Telefone:</label>
+            <input type="text" id="tele" name="tele" pattern="\d*" title="campo com valor invalido" min="0" step="1" oninput="this.value = Math.abs(this.value)" required><br><br>
+
+            <label for="deposito">Valor inicial de deposito:</label>
+            <input type="text" id="deposito" name="deposito" pattern="\d*" title="campo com valor invalido" min="0" step="1" oninput="this.value = Math.abs(this.value)" required><br><br>
+
+            <label>Qual tipo de conta:</label>
+            <label for="tipo1" class="alinhamento">Conta Corrente</label><br>
+            <input type="checkbox" id="tipo1" name="contaT" value="corrente">
+            <label for="tipo2" class="alinhamento">Conta Poupança</label><br>
+            <input type="checkbox" id="tipo2" name="contaT" value="poupança">
+            <label for="tipo3" class="alinhamento">Conta Salário</label>
+            <input type="checkbox" id="tipo3" name="contaT" value="salário">
+
+        
+            
+
+            
+
+            <button type="submit">Cadastrar</button>
+        </form>
+    </div>
+</body>
+</html>
