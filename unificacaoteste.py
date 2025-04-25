@@ -2,18 +2,31 @@ import win32com.client
 import os
 import json
 import requests
-from tkinter import Tk, Toplevel, ttk, messagebox, Button
+from tkinter import messagebox, Tk, Toplevel
+from tkinter import ttk
 import pyodbc
 
-# Função para conexão ao banco de dados
 def get():
+    # Função que retorna a string de conexão com o banco de dados SQL Server
     return ("Driver={SQL Server};"
             "Server=TOTVSAPL;"
             "Database=protheus12_producao;"
             "UID=consulta;"
             "PWD=consulta;")
 
-# Função para consulta ao banco de dados
+def gerar_lista(componentes, nivel, numero=0, lista=[], listadebug=[]):
+    for comp in componentes:
+        numero += 1
+        nome_comp = extrair_codigo_componente(comp.Name2)
+        listadebug.append(f"numero: {numero} nivel: {nivel}")
+        listadebug.append(f"{obter_nome_por_nivel(nivel)}: {nome_comp}")
+        lista.append(nome_comp)
+        subcomps = comp.GetChildren
+        if subcomps:
+            # Chamada recursiva para subcomponentes
+            gerar_lista(subcomps, nivel + 1, numero, lista, listadebug)
+    return lista
+
 def consultar_lista(lista):
     conexao = pyodbc.connect(get())
     cursor = conexao.cursor()
@@ -39,91 +52,119 @@ def consultar_lista(lista):
         cursor.close()
         conexao.close()
 
-# Função para exibir a interface gráfica
-def exibir_tela(resultados, dados_hierarquicos, enviar_api_func):
+def exibir_tela(resultados):
     # Janela principal
     janela = Toplevel()
-    janela.title("Resultados Hierárquicos")
-    janela.geometry("800x600")
+    janela.title("Resultados da Consulta")
+    janela.geometry("600x400")
 
-    # Configurar Treeview para exibir hierarquia
-    tree = ttk.Treeview(janela, columns=("Descrição", "Filial"), show="tree headings")
-    tree.heading("#0", text="Código")
+    # Configurar Treeview
+    colunas = ("Código", "Descrição", "Filial")
+    tree = ttk.Treeview(janela, columns=colunas, show="headings", height=15)
+    tree.heading("Código", text="Código")
     tree.heading("Descrição", text="Descrição")
     tree.heading("Filial", text="Filial")
+    tree.column("Código", width=150)
     tree.column("Descrição", width=300)
     tree.column("Filial", width=100)
 
-    # Função recursiva para preencher a hierarquia
-    def adicionar_no_pai(pai_id, filhos):
-        for filho in filhos:
-            codigo = filho["codigo"]
-            descricao = filho["descricao"]
-            filial = filho.get("filial", "")
-            
-            # Adicionar o item no Treeview
-            item_id = tree.insert(pai_id, "end", text=codigo, values=(descricao, filial))
-            
-            # Se o item tiver filhos, chamar recursivamente
-            if "filhos" in filho and filho["filhos"]:
-                adicionar_no_pai(item_id, filho["filhos"])
+    # Adicionar dados ao Treeview
+    for row in resultados:
+        tree.insert("", "end", values=(row[0], row[1], row[2]))
 
-    # Preencher a hierarquia a partir do nível raiz
-    adicionar_no_pai("", dados_hierarquicos)
     tree.pack(fill="both", expand=True)
 
-    # Botão para enviar os dados para a API
-    Button(janela, text="Enviar para API", command=enviar_api_func).pack(pady=10)
+    # Botão de fechamento
+    ttk.Button(janela, text="Fechar", command=janela.destroy).pack(pady=10)
 
-    # Botão para fechar a janela
-    Button(janela, text="Fechar", command=janela.destroy).pack(pady=5)
+    
 
-# Função para estruturar os dados em formato hierárquico
-def organizar_hierarquia(resultados):
-    # Exemplo de organização hierárquica
-    hierarquia = []
-    for row in resultados:
-        hierarquia.append({
-            "codigo": row[0],
-            "descricao": row[1],
-            "filial": row[2],
-            "filhos": []  # Adicione lógica para preencher filhos reais, se necessário
-        })
-    return hierarquia
+def extrair_codigo_arquivo(nome_arquivo):
+    return os.path.splitext(os.path.basename(nome_arquivo))[0]
 
-# Função para enviar dados à API
-def enviar_para_api(dados_hierarquicos):
-    try:
-        url = "https://www.zohoapis.com/creator/custom/grupoaiz/SolidWorks?publickey=4WTWAfSnDWdjzatDCYr6gyJ4"
-        headers = {"Content-Type": "application/json"}
-        response = requests.post(url, headers=headers, data=json.dumps(dados_hierarquicos, indent=2))
+def obter_nome_por_nivel(nivel):
+    return {
+        1: "Modulo",
+        2: "Conjunto",
+        3: "Componente",
+        4: "Subcomponente"
+    }.get(nivel, f"Nivel{nivel}")
 
-        if response.status_code == 200:
-            messagebox.showinfo("Sucesso", "Dados enviados com sucesso!")
-        else:
-            messagebox.showerror("Erro", f"Erro ao enviar: {response.status_code}\n{response.text}")
+def extrair_codigo_componente(nome_completo):
+    nome = nome_completo.split("/")[-1]
+    return nome.split("-")[0]
 
-    except Exception as e:
-        messagebox.showerror("Erro", f"Erro ao enviar para API: {str(e)}")
+def eh_codigo_padrao(codigo):
+    return " " not in codigo and 1 <= len(codigo) <= 9
 
-# Função principal
+def gerar_json(comps, nivel):
+    filhos = []
+    contador = 0
+
+    for comp in comps:
+        nome_comp = extrair_codigo_componente(comp.Name2)
+        if eh_codigo_padrao(nome_comp):
+            contador += 1
+            item = {
+                obter_nome_por_nivel(nivel): nome_comp,
+                "Numero": contador
+            }
+            subcomps = comp.GetChildren
+            if subcomps:
+                # Chamada recursiva para subcomponentes
+                item["Filhos"] = json.loads(gerar_json(subcomps, nivel + 1))["Filhos"]
+            filhos.append(item)
+
+    return json.dumps({"Filhos": filhos})
+
 def main():
     root = Tk()
     root.withdraw()
 
     try:
-        # Simulação de dados do SolidWorks
-        lista_componentes = ['G1000553', 'I2001963', 'X3007890']
-        resultados = consultar_lista(lista_componentes)
+        swApp = win32com.client.Dispatch("SldWorks.Application")
+        swModel = swApp.ActiveDoc
+
+        if swModel is None or swModel.GetType != 2:  # 2 = swDocASSEMBLY
+            messagebox.showerror("Erro", "Nenhum assembly aberto no SolidWorks.")
+            return
+
+        caminho = swModel.GetPathName
+        if not caminho:
+            messagebox.showerror("Erro", "O documento não foi salvo. Salve o arquivo antes de continuar.")
+            return
+
+        codigo = extrair_codigo_arquivo(caminho)
+        componentes = swModel.GetComponents(False)
+
+        lista = gerar_lista(componentes, 1)
+        resultados = consultar_lista(lista)
 
         if resultados:
-            # Organizar dados em hierarquia
-            dados_hierarquicos = organizar_hierarquia(resultados)
-
-            # Exibir a interface gráfica com hierarquia e botão de envio
-            exibir_tela(resultados, dados_hierarquicos, lambda: enviar_para_api(dados_hierarquicos))
+            exibir_tela(resultados)
         else:
             messagebox.showinfo("Sem Resultados", "Nenhum dado encontrado para os componentes fornecidos.")
+
+
+        
+        json_dados = {
+            "dados": {
+                "Produto": codigo,
+                **json.loads(gerar_json(componentes, 1))  # Gera estrutura hierárquica
+            }
+        }
+
+        json_string = json.dumps(json_dados, indent=2)
+        
+
+        url = "https://www.zohoapis.com/creator/custom/grupoaiz/SolidWorks?publickey=4WTWAfSnDWdjzatDCYr6gyJ4"  # colocar um "B" no final
+        headers = {"Content-Type": "application/json"}
+        response = requests.post(url, headers=headers, data=json_string)
+
+        if response.status_code == 200:
+            messagebox.showinfo("Sucesso", "Dados enviados com sucesso!")
+        else:
+            messagebox.showerror("Erro", f"Erro ao enviar: {response.status_code}\n{response.text}")
 
     except Exception as e:
         messagebox.showerror("Erro", str(e))
