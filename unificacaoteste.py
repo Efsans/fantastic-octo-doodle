@@ -1,94 +1,156 @@
-import sys
+import win32com.client
+import os
 import json
 import requests
+from tkinter import messagebox, Tk
+import pyodbc
 
+def get():
+  # Função que retorna a string de conexão com o banco de dados SQL Server
+  dados_conexao = ("Driver={SQL Server};"
+                  "Server=TOTVSAPL;"
+                  "Database=protheus12_producao;"
+                  "UID=consulta;"
+                  "PWD=consulta;")
+#conexao = pyodbc.connect(get())      
+#cursor = conexao.cursor()                  
+  return dados_conexao
 
-def enviar_para_api(json_data):
-    api_url = "https://www.zohoapis.com/creator/custom/grupoaiz/SolidWorks?publickey=4WTWAfSnDWdjzatDCYr6gyJ4B"
-    headers = {
-        "Content-Type": "application/json"
-    }
+def gerar_lista(componentes, nivel, numero=0, lista=[], listadebug=[]):#gerar uma lista e salvar 
+    for comp in componentes:
+        numero += 1
+        nome_comp = extrair_codigo_componente(comp.Name2)
+        listadebug += f"numero: {numero} nivel: {nivel}",f"{obter_nome_por_nivel(nivel)}: {nome_comp}"
+        lista.append(nome_comp)
+        subcomps = comp.GetChildren
+        if subcomps:
+            # Chamada recursiva para subcomponentes
+            gerar_lista(subcomps, nivel + 1)         
+    if nivel == 1:
+        messagebox.showinfo("Lista de Componentes debug", "\n".join(listadebug))
+        messagebox.showinfo("lista de debug conponentes", "\n".join(lista))
+        return lista
 
+def consultar_lista(lista, resultado=None):
+    conexao = pyodbc.connect(get())      
+    cursor = conexao.cursor()
     try:
-        response = requests.post(api_url, headers=headers, data=json_data.encode('utf-8'))
-        print("Enviado com sucesso!")
-        print("Resposta da API:", response.text)
+        placeholder = ", ".join(["?"] * len(lista))
+        # messagebox.showinfo("placeholder", placeholder)
+        query = f"SELECT B1_COD, B1_DESC, B1_FILIAL FROM SB1010 AS SB1 WHERE SB1.D_E_L_E_T_ = '' AND SB1.B1_COD IN ({placeholder}) AND SB1.B1_FILIAL = '09ALFA'"
+    
+        cursor.execute(query, lista)
+    
+        for row in cursor.fetchall():
+            produto = row[1] if row[1] else "Indefinido"
+            codigo = row[0] if row[0] else "Indefinido"
+            filial = row[2] if row[2] else "Indefinido"
+            messagebox.showinfo("Resultados da Consulta", f"Produto: {produto}\nCódigo: {codigo}\nFilial: {filial}")
+            return resultado == row    
     except Exception as e:
-        print("Erro ao enviar para a API:", str(e))
-
-def ver_na_api(codigo, filial="01mega"):
-  api_url = f"http://177.155.130.19:8092/Rest/WSConsulta/Produto/{codigo}"
-  headers = {
-        "FILIAL": filial,
-        "Accept": "application/json",
-        "Authorization": "Basic U1VQT1JURS5QUk9USEVVUzpzdXBvcnRl"
-    }
-
-  try:
-      response = requests.get(api_url, headers=headers)
-      if response.status_code == 200:
-          return response.json()
-      else:
-          return {"erro": f"Erro {response.status_code}"}
-  except Exception as e:
-      return {"erro": str(e)}
+        messagebox.showerror("Erro", f"Erro ao consultar a lista: {str(e)}")    
 
 
-def processo(filhos, nivel=1, arquivo=None):
-    for item in filhos:
-        codigo = ""
-        descricao = ""
-        campo = ""
-
-        for Key in item:
-          if Key not in ["numero", "filhos"]:
-            campo = Key
-            codigo = item[Key]
-            break
-    if codigo:
-      resultado = ver_na_api(codigo)
-      descricao = resultado.get("Descricao", "Descrição não encontrada")
-
-      linha = f"{'  ' * (nivel - 1)}{campo}: {codigo} - {descricao}\n"
-      print(linha.strip())
-    if arquivo:
-                arquivo.write(linha)
-
-        # Processa filhos recursivamente
-    if "Filhos" in item:
-        processo(item["Filhos"], nivel + 1, arquivo)
+def tela():
+    root = Tk()
+    root.withdraw()
+    root.title("Monitor de Propriedades")
+    root.geometry("300x150")
+    
 
 
+def extrair_codigo_arquivo(nome_arquivo):
+    return os.path.splitext(os.path.basename(nome_arquivo))[0]
 
-def consultar(json_data):
-    dados = json.loads(json_data)
-    filhos = dados.get("dados", {}).get("Filhos", [])
+def obter_nome_por_nivel(nivel):
+    return {
+        1: "Modulo",
+        2: "Conjunto",
+        3: "Componente",
+        4: "Subcomponente"
+    }.get(nivel, f"Nivel{nivel}")
 
-    with open("C:\\TEMP\\resultado.txt", "w", encoding="utf-8") as arq:
-        processo(filhos, nivel=1, arquivo=arq)
+def extrair_codigo_componente(nome_completo):
+    nome = nome_completo.split("/")[-1]
+    return nome.split("-")[0]
 
+def eh_codigo_padrao(codigo):
+    return " " not in codigo and 1 <= len(codigo) <= 9
 
+def gerar_json(comps, nivel):
+    filhos = []
+    contador = 0
 
-def percorrer_estrutura(lista, nivel):
-    indent = "  " * nivel
-    for item in lista:
-        for chave, valor in item.items():
-            if chave != "Filhos":
-                print(f"{indent}{chave}: {valor}")
-        if "Filhos" in item and isinstance(item["Filhos"], list):
-            percorrer_estrutura(item["Filhos"], nivel + 1)
+    for comp in comps:
+        nome_comp = extrair_codigo_componente(comp.Name2)
+        if eh_codigo_padrao(nome_comp):
+            contador += 1
+            item = {
+                obter_nome_por_nivel(nivel): nome_comp,
+                "Numero": contador
+            }
+            subcomps = comp.GetChildren
+            if subcomps:
+                # Chamada recursiva para subcomponentes
+                item["Filhos"] = json.loads(gerar_json(subcomps, nivel + 1))["Filhos"]
+            filhos.append(item)
+
+    return json.dumps({"Filhos": filhos})
 
 def main():
+    root = Tk()
+    root.withdraw()
+
     try:
-        json_input = sys.stdin.read()  # Lê o JSON vindo do VBA
-        json.loads(json_input)  # Verifica se é um JSON válido (opcional, segurança)
-        enviar_para_api(json_input) and consultar(json_input)
-        
+        swApp = win32com.client.Dispatch("SldWorks.Application")
+        swModel = swApp.ActiveDoc
 
-        
+        if swModel is None or swModel.GetType != 2:  # 2 = swDocASSEMBLY
+            messagebox.showerror("Erro", "Nenhum assembly aberto no SolidWorks.")
+            return
+
+        caminho = swModel.GetPathName
+        if not caminho:
+            messagebox.showerror("Erro", "O documento não foi salvo. Salve o arquivo antes de continuar.")
+            return
+
+        codigo = extrair_codigo_arquivo(caminho)
+        componentes = swModel.GetComponents(False)
+
+        # gerar_lista(componentes, 1)
+        lista = gerar_lista(componentes, 1)
+        try:
+            resultado=consultar_lista(lista)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao consultar a lista: {str(e)}")
+
+        if not resultado:
+            messagebox.showerror("Erro", "Nenhum resultado encontrado na consulta.")
+
+        tela(resultado)
+
+
+        json_dados = {
+            "dados": {
+                "Produto": codigo,
+                **json.loads(gerar_json(componentes, 1))  # Gera estrutura hierárquica
+            }
+        }
+
+        json_string = json.dumps(json_dados, indent=2)
+        print(json_string)
+
+        url = "https://www.zohoapis.com/creator/custom/grupoaiz/SolidWorks?publickey=4WTWAfSnDWdjzatDCYr6gyJ4"#colocar um "B" no final
+        headers = {"Content-Type": "application/json"}
+        response = requests.post(url, headers=headers, data=json_string)
+
+        if response.status_code == 200:
+            messagebox.showinfo("Sucesso", "Dados enviados com sucesso!")
+        else:
+            messagebox.showerror("Erro", f"Erro ao enviar: {response.status_code}\n{response.text}")
+
     except Exception as e:
-        print("Erro ao processar o JSON:", str(e))
-
+        messagebox.showerror("Erro", str(e))
 
 if __name__ == "__main__":
     main()
