@@ -74,6 +74,7 @@ def monitorar_propriedade():
             messagebox.showwarning("Atencao", "Codigo nao encontrado")
             return
 # Concatena a cláusula WHERE somente se houver condições
+    
         if conditions:
             query += " WHERE " + " AND ".join(conditions)  # Lista para acumular condições da cláusula WHERE
             

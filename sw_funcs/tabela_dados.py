@@ -2,12 +2,16 @@ import win32com.client
 import ctypes
 import os
 import tkinter as tk
-from tkinter import messagebox, Tk, Toplevel,ttk
+from tkinter import messagebox, Tk, Toplevel, ttk
 import sys
 import json
 import requests
 import pyodbc
 from sw_funcs.conectsql import get
+
+# Cache global
+resultados_cache = None
+json_cache = None
 
 
 
@@ -20,18 +24,16 @@ def gerar_lista(componentes, nivel, numero=0, lista=[], listadebug=[]):
         lista.append(nome_comp)
         subcomps = comp.GetChildren
         if subcomps:
-            # Chamada recursiva para subcomponentes
             gerar_lista(subcomps, nivel + 1, numero, lista, listadebug)
     return lista
 
 def consultar_lista(lista):
     conexao = pyodbc.connect(get())
     cursor = conexao.cursor()
-
     try:
         placeholders = ", ".join(["?"] * len(lista))
         query = f"""
-            SELECT B1_COD, B1_DESC, B1_FILIAL 
+            SELECT B1_COD, B1_DESC, B1_TIPO, B1_UM, B1_POSIPI, B1_ORIGEM, B1_FILIAL 
             FROM SB1010 AS SB1 
             WHERE SB1.D_E_L_E_T_ = '' 
               AND SB1.B1_COD IN ({placeholders}) 
@@ -40,37 +42,40 @@ def consultar_lista(lista):
         cursor.execute(query, lista)
         resultados = cursor.fetchall()
         return resultados
-
     except Exception as e:
         messagebox.showerror("Erro", f"Erro ao consultar a lista: {str(e)}")
         return []
-
     finally:
         cursor.close()
         conexao.close()
 
-
-
 def exibir_tela(janela, resultados, json_dados):
-    # Remove painel anterior se já existir
     for widget in janela.pack_slaves():
         if getattr(widget, "editor_embutido", False):
             widget.destroy()
 
     frame_resultado = tk.Frame(janela, height=300, bg="#f0f0f0")
     frame_resultado.pack(side="bottom", fill="both", pady=5)
-    frame_resultado.editor_embutido = True  # marca para futura remoção
+    frame_resultado.editor_embutido = True
 
-    colunas = ("Código", "Descrição", "Filial")
+    colunas = ("Código", "Descrição", "Tipo", "Unidade", "NCM", "Origem", "Filial")
     tree = ttk.Treeview(frame_resultado, columns=colunas, show="headings", height=10)
+
     for col in colunas:
         tree.heading(col, text=col)
-    tree.column("Código", width=150)
-    tree.column("Descrição", width=300)
-    tree.column("Filial", width=100)
+        if col == "Descrição":
+            tree.column(col, width=300)
+        elif col == "Código":
+            tree.column(col, width=150)
+        elif col == "Filial":
+            tree.column(col, width=100)
+        else:
+            tree.column(col, width=150)
 
     for row in resultados:
-        tree.insert("", "end", values=(row[0], row[1], row[2]))
+        tree.insert("", "end", values=(
+            row[0], row[1], row[2], row[3], row[4], row[5], row[6]
+        ))
 
     tree.pack(fill="both", expand=True, padx=10, pady=(10, 5))
 
@@ -79,8 +84,6 @@ def exibir_tela(janela, resultados, json_dados):
 
     tk.Button(botoes_frame, text="Enviar", command=lambda: enviar_api(json_dados), height=2, width=25).pack(side="left", padx=5)
     tk.Button(botoes_frame, text="Fechar", command=frame_resultado.destroy, height=2, width=25).pack(side="left", padx=5)
-
-
     
 
 def extrair_codigo_arquivo(nome_arquivo):
@@ -104,7 +107,6 @@ def eh_codigo_padrao(codigo):
 def gerar_json(comps, nivel):
     filhos = []
     contador = 0
-
     for comp in comps:
         nome_comp = extrair_codigo_componente(comp.Name2)
         if eh_codigo_padrao(nome_comp):
@@ -115,13 +117,13 @@ def gerar_json(comps, nivel):
             }
             subcomps = comp.GetChildren
             if subcomps:
-                # Chamada recursiva para subcomponentes
                 item["Filhos"] = json.loads(gerar_json(subcomps, nivel + 1))["Filhos"]
             filhos.append(item)
-
     return json.dumps({"Filhos": filhos})
 
 def tabela_dados(janela_principal):
+    global resultados_cache, json_cache
+
     try:
         swApp = win32com.client.Dispatch("SldWorks.Application")
         swModel = swApp.ActiveDoc
@@ -133,6 +135,10 @@ def tabela_dados(janela_principal):
         caminho = swModel.GetPathName
         if not caminho:
             messagebox.showerror("Erro", "O documento não foi salvo. Salve o arquivo antes de continuar.")
+            return
+
+        if resultados_cache and json_cache:
+            exibir_tela(janela_principal, resultados_cache, json_cache)
             return
 
         codigo = extrair_codigo_arquivo(caminho)
@@ -149,14 +155,14 @@ def tabela_dados(janela_principal):
         }
 
         if resultados:
+            resultados_cache = resultados
+            json_cache = json_dados
             exibir_tela(janela_principal, resultados, json_dados)
         else:
             messagebox.showinfo("Sem Resultados", "Nenhum dado encontrado para os componentes fornecidos.")
 
     except Exception as e:
         messagebox.showerror("Erro", str(e))
-
-
 
 def enviar_api(json_dados):
     try:
