@@ -1,8 +1,10 @@
-from parametros import params
 from tkinter import messagebox
-from descri_tipo import tipo_prefix
+from sw_funcs.descri_tipo import tipo_prefix
+from sw_funcs.parametros import params
+
 
 def prefixo(valor, mostrar=True):
+    liber = None
     valor = valor.strip().upper()
     if valor.startswith("C3S"):
         prefixo_extraido = "C3S"
@@ -18,19 +20,18 @@ def prefixo(valor, mostrar=True):
         msg = "❌ Banco de dados não acessado."
         if mostrar:
             messagebox.showinfo("Erro", msg)
-        return msg
+        return msg, False
 
     if prefixo_extraido in lista_prefixos:
         msg = f"✅ Prefixo encontrado: {prefixo_extraido} — {tipo_prefix(prefixo_extraido)}"
-        
         if mostrar:
             messagebox.showinfo("Sucesso", msg)
-        return msg
+        return msg, True
     else:
         msg = f"❌ Prefixo {prefixo_extraido} não encontrado."
         if mostrar:
             messagebox.showinfo("Fracasso", msg)
-        return msg
+        return msg, False
 
     
 

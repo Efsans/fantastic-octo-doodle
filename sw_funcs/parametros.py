@@ -1,5 +1,5 @@
 import pyodbc
-from conectsql import get
+from sw_funcs.conectsql import get
 import tkinter as tk
 from tkinter import messagebox
 def params(p):
