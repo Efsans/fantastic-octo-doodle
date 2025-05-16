@@ -2,6 +2,7 @@ import win32com.client
 import tkinter as tk
 from tkinter import messagebox, ttk
 from sw_funcs.editor import outras_props, entradas_fixas
+from sw_funcs.validador import validar_todos_campos
 
 def salvar_propriedades():
         try:

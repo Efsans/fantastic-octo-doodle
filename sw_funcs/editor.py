@@ -3,7 +3,10 @@ from tkinter import messagebox, ttk,  StringVar, Label
 from sw_funcs.gereprop import get_mgr
 from sw_funcs.prefixo import prefixo
 import os
-from sw_funcs.validador import validar_todos_campos 
+from sw_funcs.validador import validar_todos_campos
+from sw_funcs.descri_tipo import regras
+from sw_funcs.descri_tipo import tipo_prefix
+from sw_funcs.aba_adicionar import criar_aba_adicionar 
 
 
 def abrir_editor(janela):
@@ -11,6 +14,7 @@ def abrir_editor(janela):
     entradas_fixas = {}
     outras_props = {}
     salvar_adicionar = {}
+    historico_campos = {}
 
     for widget in janela.pack_slaves():
         if getattr(widget, "editor_embutido", False):
@@ -25,90 +29,9 @@ def abrir_editor(janela):
 
     
    # ================== Aba: Adicionar ==================
-    aba_adicionar = tk.Frame(notebook)
-    aba_adicionar.pack(fill="both")
-    notebook.add(aba_adicionar, text="Adicionar")
 
-
-    def salvar_em_txt():
-        # Caminho para a área de trabalho
-        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-        caminho_arquivo = os.path.join(desktop, "dados_adicionados.txt")
-
-        with open(caminho_arquivo, "w", encoding="utf-8") as f:
-            for nome, entry in salvar_adicionar.items():
-                valor = entry.get() if isinstance(entry, tk.Entry) or isinstance(entry, ttk.Combobox) else ""
-                f.write(f"{nome}: {valor}\n")
-
-        print(f"Dados salvos em: {caminho_arquivo}")
-
-
-    def verificar_e_habilitar_botao(event=None):
-        """
-        Verifica se os campos que precisam de validação são válidos 
-        e habilita o botão "Adicionar" se estiverem.
-        """
-        campos_para_validar = {nome: entry.get() for nome, entry in salvar_adicionar.items() if nome in campos_a_validar}
-        labels_status = {nome: label for nome, label in status_labels.items() if nome in campos_a_validar}
-
-        # Valida os campos e atualiza os ícones de status
-        todos_validos = True
-        for nome, valor in campos_para_validar.items():
-            if validar_todos_campos({nome: valor}):
-                status_labels[nome].config(text="✅", fg="green")
-            else:
-                status_labels[nome].config(text="❌", fg="red")
-                todos_validos = False
-
-        # Habilita o botão "Adicionar" apenas se todos os campos validados forem válidos
-        if todos_validos:
-            botao_A["state"] = "normal"
-        else:
-            botao_A["state"] = "disabled"
-
-
-    # Interface tkinter
-
-
-    # Dicionários para armazenar widgets e status
-    salvar_adicionar = {}
-    status_labels = {}
-
-    # Lista de campos
-    campos_fixos = ["Codigo", "Descrição", "Tipo", "Unidade", "Pos.IPI/NCM", "Origem", "Empresa"]
-
-    # Campos que precisam ser validados
-    campos_a_validar = ["Codigo", "Descrição", "Tipo", "Unidade"]
-
-    for nome in campos_fixos:
-        frame = tk.Frame(aba_adicionar)
-        frame.pack(fill="x", padx=10, pady=5)
-
-        # Label do campo
-        tk.Label(frame, text=f"{nome}:").pack(side="left", padx=(0, 10))
-
-        # Campo de entrada ou combobox
-        if nome == "Empresa":
-            entry = ttk.Combobox(frame, values=["09ALFA", "01MEGA", "02AIZT"], state="normal")
-            entry.set("09ALFA")  # Define um valor padrão
-        else:
-            entry = tk.Entry(frame)
-            if nome in campos_a_validar:
-                entry.bind("<KeyRelease>", verificar_e_habilitar_botao)
-
-        entry.pack(side="left", fill="x", expand=True)
-        salvar_adicionar[nome] = entry
-
-        # Adicionar status visual (✅ ou ❌) apenas para campos validados
-        if nome in campos_a_validar:
-            status_label = tk.Label(frame, text="", font=("Arial", 12))
-            status_label.pack(side="left", padx=10)
-            status_labels[nome] = status_label
-
-    # Botão "Adicionar"
-    botao_A = tk.Button(aba_adicionar, text="Adicionar", command=salvar_em_txt, state="disabled")
-    botao_A.pack(pady=20)
-            
+    aba_adicionar = criar_aba_adicionar(notebook, janela)
+                
 
     # ================== Aba: Campos fixos ==================
     aba_fixos = tk.Frame(notebook)
@@ -166,14 +89,14 @@ def abrir_editor(janela):
     frame_add.columnconfigure(1, weight=1)
     frame_add.columnconfigure(3, weight=1)
 
-    def remover_campo(nome, frame):
-        try:
-            mgr, _ = get_mgr()
-            mgr.Delete(nome)
-            frame.destroy()
-            outras_props.pop(nome, None)
-        except Exception as e:
-            messagebox.showerror("Erro ao excluir", str(e))
+    # def remover_campo(nome, frame):
+    #     try:
+    #         mgr, _ = get_mgr()
+    #         mgr.Delete(nome)
+    #         frame.destroy()
+    #         outras_props.pop(nome, None)
+    #     except Exception as e:
+    #         messagebox.showerror("Erro ao excluir", str(e))
 
     def adicionar_campo_interface(nome, valor):
         frame_linha = tk.Frame(frame_interno)
@@ -185,8 +108,27 @@ def abrir_editor(janela):
         entry.insert(0, valor)
         outras_props[nome] = entry
 
-        botao_excluir = tk.Button(frame_linha, text="Excluir", command=lambda: remover_campo(nome, frame_linha))
-        botao_excluir.pack(side="right", padx=(10, 0))
+            # Inicia o histórico com o valor inicial
+        historico_campos[nome] = [valor]
+
+        def limpar_campo():
+            valor_atual = entry.get()
+            if valor_atual:
+                historico_campos[nome].append(valor_atual)  # Armazena o valor antes de limpar
+                entry.delete(0, tk.END)
+
+        botao_limpar = tk.Button(frame_linha, text="Limpar", command=limpar_campo)
+        botao_limpar.pack(side="right", padx=(10, 0))
+        def desfazer_ultima_acao(event=None):
+            for nome, entry in outras_props.items():
+                if nome in historico_campos and len(historico_campos[nome]) > 1:
+                    historico_campos[nome].pop()  # Remove o último valor
+                    valor_anterior = historico_campos[nome][-1]
+                    entry.delete(0, tk.END)
+                    entry.insert(0, valor_anterior)
+        janela.bind_all("<Control-z>", desfazer_ultima_acao)
+                
+
 
     def adicionar_novo_campo():
         nome_novo = entrada_nome_novo.get().strip()
