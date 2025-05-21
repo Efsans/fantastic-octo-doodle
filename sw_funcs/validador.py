@@ -2,77 +2,49 @@ import tkinter as tk
 from tkinter import messagebox
 from sw_funcs.descri_tipo import regras
 
-def obter_regra(codigo):
-    """
-    Obtém a primeira regra correspondente ao prefixo de 2 caracteres do código informado.
-
-    Parâmetros:
-        codigo (str): O código a ser analisado.
-
-    Retorna:
-        dict ou None: Retorna o dicionário da regra correspondente, ou None se não houver.
-    """
+def obter_regras_possiveis(codigo):
     codigo = codigo.strip().upper()
-    # Apenas tenta prefixos de 2 caracteres
     p = codigo[:2]
-    for regra in regras():
-        prefixos = [prf.strip().upper() for prf in regra["prefixos"]]
-        if p in prefixos:
-            return regra
-    return None
+    return [
+        possiveis for possiveis in regras()
+        if p in [pref.strip().upper() for pref in possiveis["prefixos"]]
+    ]
 
 def validar_todos_campos(campos):
-    """
-    Valida todos os campos de um formulário de cadastro, de acordo com as regras de prefixo.
-
-    Parâmetros:
-        campos (dict): Dicionário com as chaves:
-            - "Codigo": código do item
-            - "Tipo": tipo do item (deve bater com a regra)
-            - "Armazem": armazém (deve bater com a regra, se houver)
-            - "Origem": origem (deve estar entre as permitidas pela regra, se houver)
-            - "Descricao": descrição (não pode estar vazia)
-            - "Unidade": unidade (não pode estar vazia)
-
-    Retorna:
-        bool: True se todos os campos forem válidos conforme as regras, False caso contrário.
-    """
-    codigo = campos.get("Codigo", "").strip()
-    if len(codigo) < 2:
+    codigo = campos.get("Codigo", "").strip().upper()
+    if len(codigo) < 8:
         print("❌ Código muito curto.")
         return False
 
-    regra = obter_regra(codigo)
-    if not regra:
+    possiveis = obter_regras_possiveis(codigo)
+    if not possiveis:
         print(f"❌ Prefixo desconhecido em '{codigo}'.")
         return False
 
-    # 1) Tipo
-    esperado = regra["tipo"].upper()
-    if campos.get("Tipo", "").strip().upper() != esperado:
-        print(f"❌ Tipo incorreto: esperado '{esperado}'.")
-        return False
+    for regra in possiveis:
+        # 1) Tipo
+        if campos.get("Tipo", "").strip().upper() != regra["tipo"].upper():
+            continue
 
-    # 2) Armazem
-    armazem_regra = regra.get("armazem", "").strip()
-    if armazem_regra and campos.get("Armazem", "").strip() != armazem_regra:
-        print(f"❌ Armazém incorreto: esperado '{armazem_regra}'.")
-        return False
+        # 2) Armazém
+        arm_regra = regra.get("armazem", "").strip()
+        if arm_regra and campos.get("Armazem", "").strip() != arm_regra:
+            continue
 
-    # 3) Origem
-    origens = regra.get("origens", [])
-    if origens and campos.get("Origem", "").strip() not in origens:
-        print(f"❌ Origem inválida: permitidas {origens}.")
-        return False
+        # 3) Origem
+        origens = regra.get("origens", [])
+        if origens and campos.get("Origem", "").strip() not in origens:
+            continue
 
-    # 4) Descricao e Unidade: não podem estar vazios
-    for campo in ("DescriÇão", "Unidade"):
-        if not campos.get(campo, "").strip():
-            print(f"❌ O campo '{campo}' está vazio.")
-            return True
+        # 4) Descrição e Unidade
+        if not campos.get("Descrição", "").strip() or not campos.get("Unidade", "").strip():
+            continue
 
-    print("✅ Todos os campos válidos.")
-    return True
+        print(f"✅ Regra válida: prefixo {codigo[:2]} → tipo {regra['tipo']} / empresa {regra['empresa']}")
+        return True
+
+    print("❌ Nenhuma regra compatível com todos os campos.")
+    return False
 
 # campos = {
 #     "Codigo": "G123456",

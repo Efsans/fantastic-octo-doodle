@@ -28,9 +28,9 @@ def abrir_editor(janela):
     notebook.pack(expand=True, fill="both", padx=5, pady=5)
 
     
-   # ================== Aba: Adicionar ==================
+   
 
-    aba_adicionar = criar_aba_adicionar(notebook, janela)
+    
                 
 
     # ================== Aba: Campos fixos ==================
@@ -98,6 +98,8 @@ def abrir_editor(janela):
     #     except Exception as e:
     #         messagebox.showerror("Erro ao excluir", str(e))
 
+    
+   
     def adicionar_campo_interface(nome, valor):
         frame_linha = tk.Frame(frame_interno)
         frame_linha.pack(fill="x", padx=10, pady=3)
@@ -163,6 +165,19 @@ def abrir_editor(janela):
             adicionar_campo_interface(nome, val)
     else:
         tk.Label(frame_interno, text="Nenhuma outra propriedade encontrada.").pack(pady=(10, 0))
+
+
+     # ================== Aba: Adicionar ==================
+    from sw_funcs.query_edit import consultar_protheu
+    from sw_funcs.nome_arq import nome_arquivo
+    
+    codigo = nome_arquivo()  # pega só o nome do arquivo com extensão
+    validação = consultar_protheu(codigo)    
+    if validação == True:
+        None
+    else:    
+        aba_adicionar = criar_aba_adicionar(notebook, janela)
+    # ====================================================    
 
     # Botão salvar
     def salvar_propriedades():

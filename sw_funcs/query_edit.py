@@ -1,29 +1,37 @@
 from sw_funcs.conectsql import get
 import pyodbc
+import tkinter as tk
+from tkinter import messagebox
 
+def consultar_protheu(cod):
+    # Garante que cod é string e não vazio
 
-def consultar_protheu(cod="I2009128"):
-  conexao = pyodbc.connect(get())
-  cursor = conexao.cursor()
+    conexao = None
+    cursor = None
+    try:
+        conexao = pyodbc.connect(get())
+        cursor = conexao.cursor()
 
-  query=("""
-        SELECT 
-    B1_COD
-    FROM SB1010
-    where B1_COD = (?)   
-        
-      """)
-  params = (cod)
+        query = """
+            SELECT B1_COD
+            FROM SB1010
+            WHERE B1_COD = ?
+        """
+        cursor.execute(query, (cod))
+        resultados = cursor.fetchall()
+        if len(resultados) > 0 :
+            return True
+        else:
+            return False 
 
+    except Exception as e:
+        print(f"Erro ao consultar Protheus: {e}")
+        return False
 
-  cursor.execute(query,params)
-  resultados = cursor.fetchall()
-  cursor.close()
-  conexao.close()
+    finally:
+        if cursor:
+            cursor.close()
+        if conexao:
+            conexao.close()
 
-  if len(resultados) == 0:
-    return False
-  
-  else: 
-    return True
 
