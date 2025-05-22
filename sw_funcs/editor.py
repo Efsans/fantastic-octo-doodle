@@ -1,13 +1,12 @@
 import tkinter as tk
-from tkinter import messagebox, ttk,  StringVar, Label
+from tkinter import messagebox, ttk, StringVar, Label
 from sw_funcs.gereprop import get_mgr
 from sw_funcs.prefixo import prefixo
 import os
 from sw_funcs.validador import validar_todos_campos
 from sw_funcs.descri_tipo import regras
 from sw_funcs.descri_tipo import tipo_prefix
-from sw_funcs.aba_adicionar import criar_aba_adicionar 
-
+from sw_funcs.aba_adicionar import criar_aba_adicionar
 
 def abrir_editor(janela):
     campos_fixos = ["Codigo", "Descrição", "Tipo", "Unidade", "Pos.IPI/NCM", "Origem"]
@@ -27,12 +26,6 @@ def abrir_editor(janela):
     notebook = ttk.Notebook(editor)
     notebook.pack(expand=True, fill="both", padx=5, pady=5)
 
-    
-   
-
-    
-                
-
     # ================== Aba: Campos fixos ==================
     aba_fixos = tk.Frame(notebook)
     notebook.add(aba_fixos, text="Campos fixos")
@@ -47,14 +40,36 @@ def abrir_editor(janela):
     except:
         propriedades_existentes = {}
 
-    for nome in campos_fixos:
-        tk.Label(aba_fixos, text=nome + ":").pack(anchor="w", padx=10, pady=(10, 0))
+    def recarregar_campos_fixos():
+        # Re-obtem propriedades e atualiza os campos
+        try:
+            mgr, _ = get_mgr()
+            nomes = mgr.GetNames
+            propriedades_atualizadas = {
+                nome: mgr.Get(nome)[0] if isinstance(mgr.Get(nome), tuple) else mgr.Get(nome)
+                for nome in nomes or []
+            }
+        except:
+            propriedades_atualizadas = {}
+
+        for nome, entry in entradas_fixas.items():
+            entry.delete(0, tk.END)
+            if nome in propriedades_atualizadas:
+                entry.insert(0, propriedades_atualizadas[nome])
+
+    # Botão recarregar no canto superior esquerdo
+    btn_recarregar = tk.Button(aba_fixos, text="⟳ Recarregar", command=recarregar_campos_fixos)
+    btn_recarregar.grid(row=0, column=0, sticky="w", padx=10, pady=(8, 2), columnspan=2)
+
+    # Comece os campos na linha 1!
+    for idx, nome in enumerate(campos_fixos):
+        tk.Label(aba_fixos, text=nome + ":", anchor="w", width=16).grid(row=idx+1, column=0, sticky="w", padx=(10, 5), pady=6)
         entry = tk.Entry(aba_fixos)
-        entry.pack(fill="x", padx=10)
+        entry.grid(row=idx+1, column=1, sticky="ew", padx=(0, 10), pady=6)
+        aba_fixos.columnconfigure(1, weight=1)
         if nome in propriedades_existentes:
             entry.insert(0, propriedades_existentes[nome])
         entradas_fixas[nome] = entry
-
     # ================== Aba: Campos SolidWorks ==================
     aba_outros = tk.Frame(notebook)
     notebook.add(aba_outros, text="Campos SolidWorks")
@@ -74,63 +89,63 @@ def abrir_editor(janela):
 
     canvas.bind("<Configure>", ajustar_largura)
 
-    # Adicionar novo campo
+    # Adicionar novo campo (linha de adicionar)
     frame_add = tk.Frame(frame_interno)
-    frame_add.pack(fill="x", pady=(5, 10), padx=10)
-
-    tk.Label(frame_add, text="Nome:").grid(row=0, column=0, sticky="w")
-    entrada_nome_novo = tk.Entry(frame_add)
-    entrada_nome_novo.grid(row=0, column=1, sticky="ew", padx=5)
-
-    tk.Label(frame_add, text="Valor:").grid(row=0, column=2, sticky="w")
-    entrada_valor_novo = tk.Entry(frame_add)
-    entrada_valor_novo.grid(row=0, column=3, sticky="ew", padx=5)
-
+    frame_add.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(8, 12), padx=12)
     frame_add.columnconfigure(1, weight=1)
     frame_add.columnconfigure(3, weight=1)
 
-    # def remover_campo(nome, frame):
-    #     try:
-    #         mgr, _ = get_mgr()
-    #         mgr.Delete(nome)
-    #         frame.destroy()
-    #         outras_props.pop(nome, None)
-    #     except Exception as e:
-    #         messagebox.showerror("Erro ao excluir", str(e))
+    tk.Label(frame_add, text="Nome:").grid(row=0, column=0, sticky="w")
+    entrada_nome_novo = tk.Entry(frame_add, width=20)
+    entrada_nome_novo.grid(row=0, column=1, sticky="ew", padx=6)
 
-    
-   
+    tk.Label(frame_add, text="Valor:").grid(row=0, column=2, sticky="w")
+    entrada_valor_novo = tk.Entry(frame_add, width=25)
+    entrada_valor_novo.grid(row=0, column=3, sticky="ew", padx=6)
+
+    btn_add = tk.Button(frame_add, text="Adicionar Campo")
+    btn_add.grid(row=0, column=4, padx=(12, 0))
+
+    # Função para adicionar campos na interface
     def adicionar_campo_interface(nome, valor):
-        frame_linha = tk.Frame(frame_interno)
-        frame_linha.pack(fill="x", padx=10, pady=3)
+        idx = adicionar_campo_interface.linha_idx
+        linha = (idx // 2) + 1   # Começa em 1 para pular frame_add na linha 0
+        coluna = idx % 2
 
-        tk.Label(frame_linha, text=nome + ":").pack(side="left", padx=(0, 10))
-        entry = tk.Entry(frame_linha)
-        entry.pack(side="left", fill="x", expand=True)
+        frame = tk.Frame(frame_interno)
+        frame.grid(row=linha, column=coluna, sticky="ew", padx=11, pady=4)
+        frame.grid_columnconfigure(1, weight=1)
+
+        rotulo = tk.Label(frame, text=nome, width=16, anchor=tk.E)
+        rotulo.grid(row=0, column=0, sticky="w", padx=(0, 6))
+
+        entry = tk.Entry(frame, width=50)
+        entry.grid(row=0, column=1, sticky="ew", padx=(0, 6))
         entry.insert(0, valor)
         outras_props[nome] = entry
-
-            # Inicia o histórico com o valor inicial
         historico_campos[nome] = [valor]
 
         def limpar_campo():
             valor_atual = entry.get()
             if valor_atual:
-                historico_campos[nome].append(valor_atual)  # Armazena o valor antes de limpar
+                historico_campos[nome].append(valor_atual)
                 entry.delete(0, tk.END)
 
-        botao_limpar = tk.Button(frame_linha, text="Limpar", command=limpar_campo)
-        botao_limpar.pack(side="right", padx=(10, 0))
-        def desfazer_ultima_acao(event=None):
-            for nome, entry in outras_props.items():
-                if nome in historico_campos and len(historico_campos[nome]) > 1:
-                    historico_campos[nome].pop()  # Remove o último valor
-                    valor_anterior = historico_campos[nome][-1]
-                    entry.delete(0, tk.END)
-                    entry.insert(0, valor_anterior)
-        janela.bind_all("<Control-z>", desfazer_ultima_acao)
-                
+        botao_limpar = tk.Button(frame, text="Limpar", width=8, command=limpar_campo)
+        botao_limpar.grid(row=0, column=2, padx=(6, 0))
 
+        adicionar_campo_interface.linha_idx += 1
+
+    adicionar_campo_interface.linha_idx = 0  # Começa depois da linha de adicionar
+
+    def desfazer_ultima_acao(event=None):
+        for nome, entry in outras_props.items():
+            if nome in historico_campos and len(historico_campos[nome]) > 1:
+                historico_campos[nome].pop()
+                valor_anterior = historico_campos[nome][-1]
+                entry.delete(0, tk.END)
+                entry.insert(0, valor_anterior)
+    janela.bind_all("<Control-z>", desfazer_ultima_acao)
 
     def adicionar_novo_campo():
         nome_novo = entrada_nome_novo.get().strip()
@@ -155,29 +170,29 @@ def abrir_editor(janela):
         except Exception as e:
             messagebox.showerror("Erro", str(e))
 
-    btn_add = tk.Button(frame_add, text="Adicionar Campo", command=adicionar_novo_campo)
-    btn_add.grid(row=0, column=4, padx=(10, 0))
+    btn_add.config(command=adicionar_novo_campo)
 
-    # Adicionar campos existentes
+    # Adicionar campos existentes já cadastrados
     outros_existentes = {k: v for k, v in propriedades_existentes.items() if k not in campos_fixos}
     if outros_existentes:
         for nome, val in sorted(outros_existentes.items()):
             adicionar_campo_interface(nome, val)
     else:
-        tk.Label(frame_interno, text="Nenhuma outra propriedade encontrada.").pack(pady=(10, 0))
+        idx = adicionar_campo_interface.linha_idx
+        tk.Label(frame_interno, text="Nenhuma outra propriedade encontrada.").grid(row=idx, column=0, sticky="w", padx=12, pady=(10, 0))
 
-
-     # ================== Aba: Adicionar ==================
+    # ================== Aba: Adicionar ==================
     from sw_funcs.query_edit import consultar_protheu
     from sw_funcs.nome_arq import nome_arquivo
-    
-    codigo = nome_arquivo()  # pega só o nome do arquivo com extensão
-    validação = consultar_protheu(codigo)    
-    if validação == True:
-        None
-    else:    
-        aba_adicionar = criar_aba_adicionar(notebook, janela)
-    # ====================================================    
+    try:
+        codigo = nome_arquivo()
+        validação = consultar_protheu(codigo)
+        if validação == True:
+            None
+        else:
+            aba_adicionar = criar_aba_adicionar(notebook, janela)
+    except Exception as e:
+        print("Erro a gerar aba de adicionar: ", e)
 
     # Botão salvar
     def salvar_propriedades():

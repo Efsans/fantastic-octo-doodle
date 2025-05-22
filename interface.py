@@ -76,7 +76,7 @@ def on_tab_changed(event):
 notebook.bind("<<NotebookTabChanged>>", on_tab_changed)
 
 # === Rodapé ===
-label_rodape = tk.Label(janela, text="Versão 1.0.2 • Ferramentas SW", bg="#f0f0f0", font=("Segoe UI", 8))
+label_rodape = tk.Label(janela, text="Versão Beta 1.0.3  • Ferramentas SW", bg="#f0f0f0", font=("Segoe UI", 8))
 label_rodape.pack(side="bottom", pady=10)
 
 janela.mainloop()
