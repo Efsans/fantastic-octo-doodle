@@ -1,0 +1,31 @@
+ Resumo das tarefas concluídas e pendentes no desenvolvimento da extensão para o SolidWorks
+
+Foi desenvolvida uma interface externa ao SolidWorks utilizando Tkinter, com três abas principais: a primeira destinada à edição de campos padronizados da tabela de propriedades (mesmo quando ausentes na tabela original), a segunda voltada para campos livres e editáveis, e a terceira dedicada ao cadastro de novas peças, exibida somente quando a peça não está registrada no sistema.
+
+Esse cadastro inclui uma validação baseada em tipo, origem e armazenagem, que devem coincidir com o prefixo do código. Quando a descrição é preenchida corretamente, uma integração com a API do GPT fornece sugestões automáticas de códigos NCM, liberando o botão de adição.
+
+Também já foram implementadas, inicialmente como testes de aprendizado, mas com funcionamento completo, as seguintes funcionalidades: extração do código a partir do nome do arquivo, quando necessário; preenchimento automático de campos da tabela de propriedades com base em dados recuperados diretamente do Protheus; e integração com o Zoho, incluindo envio de dados via JSON e utilização da API.
+
+Há também uma tabela que exibe os itens filhos da peça principal (a peça atualmente aberta), obtendo informações via consulta por código. Está planejado o aprimoramento dessa tabela, com foco em melhorar o layout e representar visualmente a hierarquia das peças em cascata (pai → filho → neto, etc.). Idealmente, também se busca permitir a edição direta dessas peças dentro da própria tabela, sem a necessidade de abri-las individualmente.
+
+Entre as tarefas pendentes e melhorias planejadas estão:
+
+Melhorar o layout geral da interface
+
+Considerar migração do código de Python para C#, visando melhor integração com o SolidWorks
+
+Automatizar o preenchimento do campo "Material", extraindo informações específicas via regex e salvando em outro campo
+
+Integrar visualmente a interface ao ambiente do SolidWorks
+
+Remover campos desnecessários e simplificar a UI, tornando-a mais eficiente que o processo atual utilizado pela engenharia
+
+Criar uma quarta aba (“Atualizar”) visível quando a aba de cadastro não for exibida, para atualização direta de dados no Protheus
+
+Adicionar uma barra de pesquisa de materiais, trazendo funcionalidades similares às nativas do SolidWorks para dentro do sistema
+
+Corrigir erros e tornar o código mais robusto
+
+Padronizar o processo de cadastro de peças
+
+Realizar ajustes e refinamentos contínuos conforme feedback da equipe de engenharia
