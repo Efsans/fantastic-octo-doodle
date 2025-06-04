@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Compilador C# para DLL usando .NET SDK (dotnet CLI)
+# Uso: ./compilas MeuCodigo.cs MinhaBiblioteca.dll
+
+if [ "$#" -ne 2 ]; then
+    echo "Uso: $0 <arquivo.cs> <saida.dll>"
+    exit 1
+fi
+
+ARQUIVO_CS="$1"
+SAIDA_DLL="$2"
+
+if [ ! -f "$ARQUIVO_CS" ]; then
+    echo "Arquivo fonte não encontrado: $ARQUIVO_CS"
+    exit 1
+fi
+
+TEMP_DIR=$(mktemp -d)
+dotnet new classlib -n TempLib -o "$TEMP_DIR" > /dev/null
+cp "$ARQUIVO_CS" "$TEMP_DIR/"
+rm -f "$TEMP_DIR/Class1.cs"
+
+pushd "$TEMP_DIR" > /dev/null
+dotnet build TempLib.csproj -c Release -o "$TEMP_DIR" > /dev/null
+BUILD_RESULT=$?
+popd > /dev/null
+
+if [ $BUILD_RESULT -eq 0 ]; then
+    mv "$TEMP_DIR/TempLib.dll" "$SAIDA_DLL"
+    echo "Compilação bem-sucedida! DLL gerada em: $SAIDA_DLL"
+else
+    echo "Falha na compilação."
+fi
+
+rm -rf "$TEMP_DIR"
