@@ -19,7 +19,7 @@ namespace FormsAndWpfControls
         private TabControl tabControl;
         private StackPanel tabFixosPanel;
         private StackPanel tabAdicionaisPanel;
-        private Dictionary<string, TextBox> caixasTexto;
+        private Dictionary<string, TextBox> caixasTexto; // Mantido para campos de texto, mas não para Linha
 
         // Objetos da API do SolidWorks para interação
         private SldWorks swApp;
@@ -29,15 +29,20 @@ namespace FormsAndWpfControls
         // Controle WPF específico para exibir propriedades de documentos do tipo 'Part'
         private PartSpecificPropertiesControl partPropertiesControl;
 
+        private Button btnMais;
+
         // Definição dos campos de propriedades comuns e específicos por tipo de documento
         private readonly string[] camposComuns =
         {
-            "Codigo", "Description", "Tipo", "Unidade", "Pos.IPI/NCM", "Origem", "Material"
+            "Codigo", "Description", "T.MATERIAL", "Linha", "Projetista", "Desenhista", "Material"
         };
         private readonly string[] camposAssembly =
         {
-            "Codigo", "Description", "Tipo", "Unidade", "Pos.IPI/NCM", "Origem"
+            "Codigo","Description", "T.MATERIAL", "Linha", "Projetista", "Desenhista",
         };
+
+        // Lista de opções para o campo "Linha"
+        
 
         /// <summary>
         /// Construtor: Inicializa a UI, os botões de ação e tenta conectar ao SolidWorks.
@@ -66,6 +71,10 @@ namespace FormsAndWpfControls
             Button btn3 = new Button { Content = "3", Width = 35, Height = 35, Margin = new Thickness(2), ToolTip = "Auto preencher produto pelo sistema" };
             btn3.Click += Btn3_Click;
             painelBotoesFixos.Children.Add(btn3);
+
+            Button btn4 = new Button { Content = "4", Width = 35, Height = 35, Margin = new Thickness(2), ToolTip = "lista de propriedades material" };
+            btn4.Click += Btn4_Click;
+            painelBotoesFixos.Children.Add(btn4);
 
             DockPanel.SetDock(painelBotoesFixos, Dock.Top);
             painelPrincipal.Children.Add(painelBotoesFixos);
@@ -96,12 +105,25 @@ namespace FormsAndWpfControls
             tabAdicionaisPanel = new StackPanel { Margin = new Thickness(16, 12, 16, 12) };
             var tabAdicionais = new TabItem
             {
-                Header = "📝",
+                Header = "+",
                 Width = 35,
                 Height = 35,
                 Content = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Background = null, BorderThickness = new Thickness(0), Content = tabAdicionaisPanel }
             };
             tabControl.Items.Add(tabAdicionais);
+
+            // Adiciona botão "Mais" à aba de campos adicionais
+            btnMais = new Button
+            {
+                Content = "+",
+                Width = 60,
+                Height = 28,
+                FontSize = 20,
+                Margin = new Thickness(0, 0, 0, 10),
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            btnMais.Click += BtnMais_Click;
+            tabAdicionaisPanel.Children.Add(btnMais);
 
             painelPrincipal.Children.Add(tabControl);
             this.Content = painelPrincipal;
@@ -131,7 +153,7 @@ namespace FormsAndWpfControls
         /// </summary>
         public int OnActiveDocChangeNotify()
         {
-            AtualizarPainel();
+            Dispatcher.Invoke(AtualizarPainel); // Garante que a atualização da UI ocorra na thread correta.
             return 0;
         }
 
@@ -147,6 +169,11 @@ namespace FormsAndWpfControls
             {
                 tabFixosPanel.Children.Clear();
                 tabAdicionaisPanel.Children.Clear();
+                // Remove o btnMais do tabAdicionaisPanel se não houver documento ativo
+                if (tabAdicionaisPanel.Children.Contains(btnMais))
+                {
+                    tabAdicionaisPanel.Children.Remove(btnMais);
+                }
                 if (partPropertiesControl != null) // Remove o controle de Part se ele existir
                 {
                     tabFixosPanel.Children.Remove(partPropertiesControl);
@@ -159,6 +186,7 @@ namespace FormsAndWpfControls
             // Limpa painéis e dados para reconstrução da UI
             tabFixosPanel.Children.Clear();
             tabAdicionaisPanel.Children.Clear();
+            tabAdicionaisPanel.Children.Add(btnMais); // Adiciona o botão 'Mais' de volta
             caixasTexto.Clear();
 
             // Garante que o controle de Part seja removido antes de redesenhar
@@ -177,6 +205,7 @@ namespace FormsAndWpfControls
                 partPropertiesControl = new PartSpecificPropertiesControl(swModel);
                 tabFixosPanel.Children.Add(partPropertiesControl);
                 // Preenche campos adicionais, excluindo "Material" se já tratado
+                // Nota: se "Linha" estiver em camposComuns, ela será tratada aqui também.
                 CriarCamposAdicionais(camposComuns.Append("Material").ToArray());
             }
             else if (docType == (int)swDocumentTypes_e.swDocASSEMBLY) // Se for uma Montagem
@@ -187,7 +216,7 @@ namespace FormsAndWpfControls
             else // Outros tipos de documento
             {
                 tabFixosPanel.Children.Add(new TextBlock { Text = "Documento atual não é uma Peça nem uma Montagem." });
-                CriarCamposAdicionais(new string[0]);
+                CriarCamposAdicionais(new string[0]); // Sem campos adicionais para outros tipos
             }
         }
 
@@ -213,9 +242,49 @@ namespace FormsAndWpfControls
             AtualizarPainelComDelay();
         }
 
+        private void Btn4_Click(object sender, RoutedEventArgs e)
+        {
+            FuncoesExternas.Acao4();
+            AtualizarPainelComDelay();
+        }
+
         private void BtnEnviar_Click(object sender, RoutedEventArgs e)
         {
             // Lógica para o botão Enviar (a ser implementada)
+        }
+
+        private void BtnMais_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new AdicionarCampoWindow { Owner = Window.GetWindow(this) };
+            if (win.ShowDialog() == true)
+            {
+                string campoNormalizado = win.NomeCampo.Trim().ToLower();
+
+                // Adiciona o campo conforme a escolha do usuário
+                if (win.EhVariavel)
+                {
+                    AdicionarComboBoxVariavel(tabAdicionaisPanel, win.NomeCampo, "");
+                }
+                else if (campoNormalizado == "linha") // Campo "Linha" como ComboBox
+                {
+                    AdicionarComboBoxComOpcoes(tabAdicionaisPanel, win.NomeCampo, null, "");
+                }
+                else // Outros campos como TextBox
+                {
+                    TextBlock label = new TextBlock { Text = win.NomeCampo };
+                    TextBox caixa = new TextBox
+                    {
+                        Margin = new Thickness(0, 0, 0, 13),
+                        Height = 20,
+                        FontSize = 13,
+                        HorizontalAlignment = HorizontalAlignment.Stretch
+                    };
+                    caixa.IsReadOnly = false;
+                    caixa.TextChanged += CriarAtualizadorPropriedade(win.NomeCampo);
+                    tabAdicionaisPanel.Children.Add(label);
+                    tabAdicionaisPanel.Children.Add(caixa);
+                }
+            }
         }
 
         // ====================================================================
@@ -227,14 +296,17 @@ namespace FormsAndWpfControls
         /// </summary>
         private void AtualizarPainelComDelay()
         {
-            DispatcherTimer timer = new DispatcherTimer();
-            timer.Interval = TimeSpan.FromMilliseconds(350);
-            timer.Tick += (s, e) =>
+            Dispatcher.Invoke(() =>
             {
-                timer.Stop();
-                AtualizarPainel();
-            };
-            timer.Start();
+                DispatcherTimer timer = new DispatcherTimer();
+                timer.Interval = TimeSpan.FromMilliseconds(350);
+                timer.Tick += (s, e) =>
+                {
+                    timer.Stop();
+                    AtualizarPainel();
+                };
+                timer.Start();
+            });
         }
 
         /// <summary>
@@ -242,6 +314,7 @@ namespace FormsAndWpfControls
         /// </summary>
         private void CriarCamposFixos(string[] camposParaExibir)
         {
+            if (swModel == null) return;
             swPropMgr = swModel.Extension.CustomPropertyManager[""]; // Obtém o PropertyManager
 
             foreach (string nomeVisivel in camposParaExibir)
@@ -250,16 +323,18 @@ namespace FormsAndWpfControls
                 string valorRes;
                 string valorBruto = ObterValorPropriedade(nomeVisivel, out valorRes) ?? "";
 
-                // Verifica se a propriedade é uma variável do SolidWorks
                 bool isVar = ContemVariavel(valorBruto) || (!string.IsNullOrEmpty(valorBruto) && valorBruto != valorRes);
 
                 if (isVar)
                 {
                     AdicionarComboBoxVariavel(tabFixosPanel, nomeVisivel, valorRes);
                 }
-                else
+                else if (nomeChave == "linha") // Trata "Linha" como ComboBox
                 {
-                    // Cria TextBlock e TextBox para propriedades editáveis
+                    AdicionarComboBoxComOpcoes(tabFixosPanel, nomeVisivel, null, valorRes);
+                }
+                else // Outros campos como TextBox
+                {
                     TextBlock label = new TextBlock { Text = nomeVisivel };
                     TextBox caixa = new TextBox { Margin = new Thickness(0, 0, 0, 13), Text = valorRes, Height = 20, FontSize = 13, HorizontalAlignment = HorizontalAlignment.Stretch };
                     caixa.IsReadOnly = false;
@@ -277,10 +352,14 @@ namespace FormsAndWpfControls
         /// </summary>
         private void CriarCamposAdicionais(string[] camposExcluir)
         {
+            if (swModel == null) return;
             swPropMgr = swModel.Extension.CustomPropertyManager[""]; // Obtém o PropertyManager
 
             object propNames = null, propTypes = null, propValues = null;
-            swPropMgr.GetAll(ref propNames, ref propTypes, ref propValues); // Obtém todas as propriedades
+            if (swPropMgr != null)
+            {
+                swPropMgr.GetAll(ref propNames, ref propTypes, ref propValues); // Obtém todas as propriedades
+            }
 
             string[] todasPropriedades = propNames as string[];
             List<string> camposExcluirNormalizados = camposExcluir.Select(f => f.Trim().ToLower()).ToList();
@@ -301,9 +380,12 @@ namespace FormsAndWpfControls
                     {
                         AdicionarComboBoxVariavel(tabAdicionaisPanel, nomePropriedade, valorRes);
                     }
-                    else
+                    else if (nomePropriedade.Trim().ToLower() == "linha") // Trata "Linha" como ComboBox nos adicionais
                     {
-                        // Cria TextBlock e TextBox para propriedades editáveis
+                        AdicionarComboBoxComOpcoes(tabAdicionaisPanel, nomePropriedade, null, valorRes);
+                    }
+                    else // Outros campos como TextBox
+                    {
                         TextBlock label = new TextBlock { Text = nomePropriedade };
                         TextBox caixa = new TextBox { Margin = new Thickness(0, 0, 0, 13), Text = valorRes, Height = 20, FontSize = 13, HorizontalAlignment = HorizontalAlignment.Stretch };
                         caixa.IsReadOnly = false;
@@ -331,6 +413,30 @@ namespace FormsAndWpfControls
         }
 
         /// <summary>
+        /// Cria um manipulador para a mudança de seleção em uma ComboBox, atualizando a propriedade no SolidWorks.
+        /// </summary>
+        private SelectionChangedEventHandler CriarAtualizadorPropriedadeComboBox(string nomePropriedade)
+        {
+            return delegate (object sender, SelectionChangedEventArgs e)
+            {
+                ComboBox combo = sender as ComboBox;
+                if (combo != null && swPropMgr != null)
+                {
+                    // Garante que haja um item selecionado antes de tentar acessar SelectedItem
+                    if (combo.SelectedItem != null)
+                    {
+                        swPropMgr.Add3(nomePropriedade, (int)swCustomInfoType_e.swCustomInfoText, combo.SelectedItem.ToString(), (int)swCustomPropertyAddOption_e.swCustomPropertyReplaceValue);
+                    }
+                    else
+                    {
+                        // Se nada for selecionado, você pode optar por limpar a propriedade ou definir um valor padrão
+                        swPropMgr.Add3(nomePropriedade, (int)swCustomInfoType_e.swCustomInfoText, "", (int)swCustomPropertyAddOption_e.swCustomPropertyReplaceValue);
+                    }
+                }
+            };
+        }
+
+        /// <summary>
         /// Obtém o valor bruto e resolvido de uma propriedade personalizada.
         /// </summary>
         private string ObterValorPropriedade(string nomePropriedade, out string valorResolvido)
@@ -339,9 +445,12 @@ namespace FormsAndWpfControls
             if (swModel != null)
             {
                 swPropMgr = swModel.Extension.CustomPropertyManager[""];
-                bool found = swPropMgr.Get4(nomePropriedade, false, out valOut, out valRes);
-                valorResolvido = valRes;
-                return found ? valOut : null;
+                // Adicionado verificação para swPropMgr ser não nulo antes de usar
+                if (swPropMgr != null && swPropMgr.Get4(nomePropriedade, false, out valOut, out valRes))
+                {
+                    valorResolvido = valRes;
+                    return valOut;
+                }
             }
             valorResolvido = "";
             return null;
@@ -373,6 +482,32 @@ namespace FormsAndWpfControls
                 SelectedIndex = 0,
                 HorizontalAlignment = HorizontalAlignment.Stretch
             };
+            destino.Children.Add(label);
+            destino.Children.Add(combo);
+        }
+
+        /// <summary>
+        /// Adiciona um ComboBox com opções predefinidas a um painel.
+        /// </summary>
+        private void AdicionarComboBoxComOpcoes(StackPanel destino, string nomePropriedade, List<string> opcoes, string valorAtual)
+        {
+            TextBlock label = new TextBlock { Text = nomePropriedade };
+            ComboBox combo = new ComboBox
+            {
+                Margin = new Thickness(0, 0, 0, 13),
+                Height = 20,
+                FontSize = 13,
+                ItemsSource = opcoes,
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+
+            // Tenta selecionar o valor atual da propriedade na ComboBox
+            if (!string.IsNullOrEmpty(valorAtual))
+            {
+                combo.SelectedItem = opcoes.FirstOrDefault(o => o.Equals(valorAtual, StringComparison.OrdinalIgnoreCase));
+            }
+
+            combo.SelectionChanged += CriarAtualizadorPropriedadeComboBox(nomePropriedade);
             destino.Children.Add(label);
             destino.Children.Add(combo);
         }

@@ -10,6 +10,11 @@ using System.Text;
 using System.Windows;
 using Xarial.XCad.Documents;
 using Xarial.XCad.SolidWorks;
+using System.Linq; // Para usar .Select e .ToArray
+using SolidWorks.Interop.swconst;
+using Xarial.XCad.SolidWorks.Services;
+using System.Collections.Generic; // Para List<string>
+using System.Diagnostics; // Para DebugMessage
 
 namespace FormsAndWpfControls
 {
@@ -31,21 +36,24 @@ namespace FormsAndWpfControls
                 string nomeArquivo = model.GetPathName();
                 if (string.IsNullOrEmpty(nomeArquivo))
                 {
-                    MessageBox.Show("O arquivo ainda não foi salvo.", "Aviso",MessageBoxButton.OK , MessageBoxImage.Warning);
+                    MessageBox.Show("O arquivo ainda não foi salvo.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
                 string codigo = Path.GetFileNameWithoutExtension(nomeArquivo);
-
+                var resp = MessageBox.Show($"Deseja salvar o Código '{codigo}' ?", "Confirmação", MessageBoxButton.YesNo, MessageBoxImage.Information);
+                if (resp == MessageBoxResult.No)
+                {
+                    return; // Usuário cancelou a ação
+                }
                 // Use o CustomPropertyManager para garantir atualização
-                var custPropMgr = model.Extension.get_CustomPropertyManager("");
-                int result = custPropMgr.Add3("Codigo", (int)SolidWorks.Interop.swconst.swCustomInfoType_e.swCustomInfoText, codigo, (int)SolidWorks.Interop.swconst.swCustomPropertyAddOption_e.swCustomPropertyReplaceValue);
+                var materialName = model.Extension.get_CustomPropertyManager("");
+                int result = materialName.Add3("Codigo", (int)SolidWorks.Interop.swconst.swCustomInfoType_e.swCustomInfoText, codigo, (int)SolidWorks.Interop.swconst.swCustomPropertyAddOption_e.swCustomPropertyReplaceValue);
                 // Se Add3 não funcionar, use Set para garantir
-                custPropMgr.Set("Codigo", codigo);
+                materialName.Set("Codigo", codigo);
 
                 model.ForceRebuild3(false);
 
-                MessageBox.Show($"Código '{codigo}' salvo com sucesso!", "Sucesso", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
@@ -82,6 +90,12 @@ namespace FormsAndWpfControls
                 }
 
                 var jsonPayload = JsonConvert.SerializeObject(new { dados });
+
+                var result = MessageBox.Show($"deseja enviar '{jsonPayload}' para o sistema?", "Confirmação", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (result != MessageBoxResult.Yes)
+                {
+                    return; // Usuário cancelou a ação
+                }
 
                 using (HttpClient client = new HttpClient())
                 {
@@ -120,10 +134,10 @@ namespace FormsAndWpfControls
                     return;
                 }
 
-                var custPropMgr = model.Extension.get_CustomPropertyManager("");
+                var materialName = model.Extension.get_CustomPropertyManager("");
 
                 string codigo_key = "Codigo";
-                string codigo = custPropMgr.Get(codigo_key);
+                string codigo = materialName.Get(codigo_key);
                 string filial = "09ALFA";
 
                 if (string.IsNullOrEmpty(codigo))
@@ -135,7 +149,7 @@ namespace FormsAndWpfControls
                         return;
                     }
                     return;
-                    }
+                }
 
                 using (var conexao = new SqlConnection(GetConnectionString()))
                 {
@@ -195,7 +209,7 @@ namespace FormsAndWpfControls
                 {"B1_ORIGEM", "Origem"}
             };
 
-            var custPropMgr = model.Extension.get_CustomPropertyManager("");
+            var materialName = model.Extension.get_CustomPropertyManager("");
             int camposAlterados = 0;
 
             foreach (var kvp in mapeamento)
@@ -210,8 +224,8 @@ namespace FormsAndWpfControls
                     try
                     {
                         // Sempre sobrescreve e garante atualização
-                        custPropMgr.Add3(nomeProp, (int)SolidWorks.Interop.swconst.swCustomInfoType_e.swCustomInfoText, valorStr, (int)SolidWorks.Interop.swconst.swCustomPropertyAddOption_e.swCustomPropertyReplaceValue);
-                        custPropMgr.Set(nomeProp, valorStr);
+                        materialName.Add3(nomeProp, (int)SolidWorks.Interop.swconst.swCustomInfoType_e.swCustomInfoText, valorStr, (int)SolidWorks.Interop.swconst.swCustomPropertyAddOption_e.swCustomPropertyReplaceValue);
+                        materialName.Set(nomeProp, valorStr);
                         camposAlterados++;
                     }
                     catch (Exception ex)
@@ -260,6 +274,144 @@ namespace FormsAndWpfControls
             {
                 MessageBox.Show("Erro ao preencher código automaticamente: " + ex.Message, "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        public static void Acao4()
+        {
+            SldWorks swApp = null;
+            IModelDoc2 swModel = null;
+            StringBuilder sb = new StringBuilder();
+
+            try
+            {
+                // 1. Obter a instância ativa do SolidWorks
+                try
+                {
+                    swApp = (SldWorks)Marshal.GetActiveObject("SldWorks.Application");
+                    DebugMessage("SolidWorks Application obtido com sucesso.");
+                }
+                catch (COMException ex)
+                {
+                    DebugMessage($"Erro COM ao obter SolidWorks Application: {ex.Message}");
+                    MessageBox.Show("SolidWorks não está em execução ou o Add-in não conseguiu se conectar.", "Erro de Conexão SW", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    DebugMessage($"Erro geral ao obter SolidWorks Application: {ex.Message}");
+                    MessageBox.Show($"Ocorreu um erro inesperado ao conectar ao SolidWorks: {ex.Message}", "Erro", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                // 2. Obter o documento ativo
+                swModel = swApp?.IActiveDoc2;
+                if (swModel == null)
+                {
+                    DebugMessage("Nenhum documento ativo encontrado. Abortando Acao4.");
+                    MessageBox.Show("Nenhum documento aberto no SolidWorks. Por favor, abra um documento.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                DebugMessage($"Documento ativo encontrado: '{swModel.GetTitle() ?? "Não Salvo"}'");
+
+                // Verificar se o documento é uma peça
+                if (swModel.GetType() != (int)swDocumentTypes_e.swDocPART)
+                {
+                    DebugMessage($"Documento ativo não é uma peça. Tipo: {swModel.GetType()}. Abortando Acao4.");
+                    MessageBox.Show("Esta função é relevante apenas para documentos de peça (.SLDPRT), pois lida com propriedades de material.", "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                IPartDoc swPart = swModel as IPartDoc;
+                string materialName = "";
+                string materialId = "";
+
+                if (swPart != null)
+                {
+                    // 3. Obter o nome do material aplicado à peça
+                    materialName = swPart.GetMaterialPropertyName2("", out materialId);
+
+                    if (!string.IsNullOrWhiteSpace(materialName))
+                    {
+                        sb.AppendLine($"Material Aplicado ao Documento: {materialName}");
+                        DebugMessage($"Material aplicado: '{materialName}' (ID: {materialId})");
+
+                        // 4. Montar o nome correto para o CustomPropertyManager
+                        string customPropMgrName = $"Material@{materialName}";
+
+                        // 5. Tentar obter o CustomPropertyManager
+                        var materialCustPropMgr = swModel.Extension?.get_CustomPropertyManager(customPropMgrName);
+
+                        // Se ainda assim for nulo, tente sem espaços extras ou caracteres especiais
+                        if (materialCustPropMgr == null && materialName.Contains("|"))
+                        {
+                            // Alguns materiais podem vir com "nome|caminho", tente só o nome antes do pipe
+                            string nomeLimpo = materialName.Split('|')[0].Trim();
+                            customPropMgrName = $"Material@{nomeLimpo}";
+                            materialCustPropMgr = swModel.Extension?.get_CustomPropertyManager(customPropMgrName);
+                        }
+
+                        sb.AppendLine("\n--- Propriedades Personalizadas do MATERIAL (Aba 'Personalizado' no diálogo de material) ---");
+
+                        if (materialCustPropMgr == null)
+                        {
+                            sb.AppendLine("Não foi possível acessar as propriedades personalizadas do material. Certifique-se de que o material está corretamente aplicado e que possui propriedades personalizadas.");
+                            DebugMessage($"materialCustPropMgr retornou nulo para '{customPropMgrName}'.");
+                        }
+                        else
+                        {
+                            var propNames = materialCustPropMgr.GetNames() as string[];
+
+                            if (propNames != null && propNames.Length > 0)
+                            {
+                                foreach (var prop in propNames)
+                                {
+                                    string val = materialCustPropMgr.Get(prop);
+                                    sb.AppendLine($"{prop}: {val ?? "[Vazio]"}");
+                                }
+                                DebugMessage($"Encontradas {propNames.Length} propriedades personalizadas do material.");
+                            }
+                            else
+                            {
+                                sb.AppendLine("Nenhuma propriedade personalizada encontrada na aba 'Personalizado' para este material.");
+                                DebugMessage("Nenhuma propriedade personalizada do material encontrada.");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        sb.AppendLine("Nenhum material explicitamente aplicado à peça.");
+                        sb.AppendLine("Não foi possível buscar propriedades personalizadas do material.");
+                        DebugMessage("Nenhum material aplicado à peça.");
+                    }
+                }
+                else
+                {
+                    sb.AppendLine("Documento não é uma peça. Não há material para obter propriedades personalizadas.");
+                    DebugMessage("Documento não é uma peça.");
+                }
+
+                // 6. Exibir a lista resultante
+                MessageBox.Show(sb.ToString(), "Propriedades Personalizadas do Material", MessageBoxButton.OK, MessageBoxImage.Information);
+                DebugMessage("Acao4 concluída com sucesso.");
+            }
+            catch (COMException comEx)
+            {
+                DebugMessage($"ERRO COM EXCEPTION: {comEx.Message} (HRESULT: {comEx.ErrorCode:X8})");
+                MessageBox.Show($"Ocorreu um erro de comunicação com o SolidWorks:\n{comEx.Message}\n(Código: 0x{comEx.ErrorCode:X8})", "Erro de COM", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (Exception ex)
+            {
+                DebugMessage($"ERRO GERAL EXCEPTION: {ex.Message}\nStackTrace: {ex.StackTrace}");
+                MessageBox.Show($"Ocorreu um erro inesperado:\n{ex.Message}\n\nDetalhes para Depuração:\n{ex.StackTrace}", "Erro Inesperado", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Função auxiliar para exibir mensagens de depuração no Output/Debug window (se um debugger estiver anexado).
+        /// </summary>
+        private static void DebugMessage(string message)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Acao4 Debug] {DateTime.Now:HH:mm:ss.fff} - {message}");
         }
     }
 }
