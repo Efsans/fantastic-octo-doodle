@@ -66,9 +66,12 @@ public class ControlsCsAddIn : SwAddInEx // Herda de SwAddInEx, base para Add-In
         // Cria instâncias das páginas do PropertyManager para uso posterior
         m_WinFormsPMPage = CreatePage<WinFormsPMPage>();
         m_WpfPMPage = CreatePage<WpfPMPage>();
+
+        this.CreateTaskPaneWpf<DynamicWpfTaskPaneControl>();
     }
 
     // Evento disparado quando um comando é clicado na UI
+    
     private void OnButtonClick(ControlCommands_e cmd)
     {
         // Obtém o documento ativo no SOLIDWORKS
@@ -133,6 +136,9 @@ public class ControlsCsAddIn : SwAddInEx // Herda de SwAddInEx, base para Add-In
                     m_WpfPMPage.Show(new WpfPMPage());
                     break;
                 }
+
+
         }
+        
     }
 }
